@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Sourcing Lion", page_icon="🦁", layout="wide")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="Sourcing Lion V2", page_icon="🦁", layout="wide")
 
-st.title("🦁 Lion Industrie - Sourcing Fournisseurs")
-st.markdown("### Trouvez vos lots en quelques clics")
+st.title("🦁 Lion Industrie - Sourcing Multi-Produits")
+st.markdown("### Fleurs, Extraits, Comestibles & Vape")
 st.divider()
 
-# --- CHARGEMENT DES DONNÉES ---
+# --- CHARGEMENT ---
 @st.cache_data
 def load_data():
-    # On lit le fichier CSV avec le séparateur point-virgule
     try:
+        # On lit le CSV. Attention aux encodages parfois capricieux, ici on reste simple.
         df = pd.read_csv("data.csv", sep=";")
         return df
     except Exception as e:
@@ -21,57 +21,62 @@ def load_data():
 df = load_data()
 
 if df is None:
-    st.error("⚠️ Erreur : Le fichier 'data.csv' est introuvable ou mal formaté.")
+    st.error("⚠️ Erreur : Problème avec le fichier data.csv")
     st.stop()
 
-# --- BARRE LATÉRALE (FILTRES) ---
-st.sidebar.header("🔍 Critères de recherche")
+# --- BARRE LATÉRALE (FILTRES INTELLIGENTS) ---
+st.sidebar.header("🔍 Filtres")
 
-# 1. Filtre Pays
-all_countries = sorted(df['Pays'].unique())
-selected_country = st.sidebar.multiselect("Pays d'origine", all_countries, default=all_countries)
+# 1. Filtre CATEGORIE (Le plus important maintenant)
+# Cela permet de choisir d'abord "Fleurs" ou "Comestibles"
+all_cats = sorted(df['Categorie'].unique())
+selected_cat = st.sidebar.multiselect("📂 Catégorie", all_cats, default=all_cats)
 
-# 2. Filtre Type (Indoor/Outdoor)
-all_types = sorted(df['Type'].unique())
-selected_type = st.sidebar.multiselect("Type de culture", all_types, default=all_types)
+# 2. Filtre PAYS
+# On ne montre que les pays disponibles pour les catégories choisies (optionnel mais plus propre)
+available_countries = df[df['Categorie'].isin(selected_cat)]['Pays'].unique()
+selected_country = st.sidebar.multiselect("🌍 Pays", available_countries, default=available_countries)
 
-# 3. Filtre Prix
+# 3. Filtre TYPE (Indoor, Distillat, Gummies...)
+available_types = df[df['Categorie'].isin(selected_cat)]['Type'].unique()
+selected_type = st.sidebar.multiselect("🏷️ Type / Méthode", available_types, default=available_types)
+
+# 4. Filtre PRIX
+# Attention : le prix peut être au kg ou à l'unité selon le produit
 min_price = int(df['Prix'].min())
 max_price = int(df['Prix'].max())
-price_range = st.sidebar.slider("Budget Max (€/kg)", min_price, max_price, max_price)
+price_range = st.sidebar.slider("💰 Budget Max (Unité ou Kg)", min_price, max_price, max_price)
 
-# --- FILTRAGE DES DONNÉES ---
-# On garde les lignes qui correspondent aux choix
+# --- FILTRAGE ---
 filtered_df = df[
+    (df['Categorie'].isin(selected_cat)) &
     (df['Pays'].isin(selected_country)) &
     (df['Type'].isin(selected_type)) &
     (df['Prix'] <= price_range)
 ]
 
-# --- AFFICHAGE DES RÉSULTATS ---
+# --- RÉSULTATS ---
 col1, col2 = st.columns([1, 3])
 with col1:
     st.metric(label="Offres trouvées", value=len(filtered_df))
 
-st.subheader("📋 Liste des lots disponibles")
+st.subheader("📋 Résultats")
 
 if not filtered_df.empty:
-    # Affichage propre du tableau
     st.dataframe(
         filtered_df,
         column_config={
+            "Categorie": "Catégorie",
             "Nom": "Fournisseur",
-            "Variété": "Fleur / Produit",
-            "Prix": st.column_config.NumberColumn("Prix (€)", format="%d €"),
+            "Type": "Type/Méthode",
+            "Prix": st.column_config.NumberColumn("Prix", format="%d €"),
             "Lien": st.column_config.LinkColumn("Lien Catalogue"),
-            "Date": st.column_config.DateColumn("Date Récolte", format="DD/MM/YYYY"),
         },
         hide_index=True,
         use_container_width=True
     )
 else:
-    st.info("Aucun résultat ne correspond à ces filtres. Essayez d'élargir la recherche.")
+    st.info("Aucun produit trouvé avec ces critères.")
 
-# Petit footer Lion
 st.markdown("---")
-st.caption("Lion Industrie Sourcing Tool • Données internes")
+st.caption("Lion Industrie • Base de données multi-produits")
